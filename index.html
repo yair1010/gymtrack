@@ -1874,7 +1874,7 @@
             <div class="stats-grid" id="statsGrid" style="display: none;">
                 <div class="stat-box">
                     <span class="value" id="maxValue">-</span>
-                    <span class="label">Max</span>
+                    <span class="label" id="maxLabel">Max</span>
                 </div>
                 <div class="stat-box">
                     <span class="value" id="avgValue">-</span>
@@ -2256,16 +2256,64 @@
             container.scrollTop = 0;
         }
         
+        function getLastSession(exerciseName) {
+            // Find the most recent workout that contains this exercise
+            // (skip the workout being edited)
+            const editingIndex = window.editingWorkoutIndex ?? -1;
+            
+            const sorted = [...workouts]
+                .map((w, i) => ({ workout: w, index: i }))
+                .filter(({ index }) => index !== editingIndex)
+                .sort((a, b) => new Date(b.workout.date) - new Date(a.workout.date));
+            
+            for (const { workout } of sorted) {
+                const ex = workout.exercises.find(e => e.name === exerciseName);
+                if (ex) {
+                    const date = new Date(workout.date);
+                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return { sets: ex.sets, date: dateStr };
+                }
+            }
+            return null;
+        }
+        
         function renderCurrentExercises() {
             const container = document.getElementById('currentExercises');
             const weightUnit = getWeightUnit();
             
-            container.innerHTML = currentExercises.map((exercise, exIndex) => `
+            container.innerHTML = currentExercises.map((exercise, exIndex) => {
+                const prev = getLastSession(exercise.name);
+                
+                const prevHtml = prev ? `
+                    <div style="
+                        background: rgba(255,255,255,0.04);
+                        border-left: 3px solid var(--primary);
+                        border-radius: 0 8px 8px 0;
+                        padding: 8px 12px;
+                        margin-bottom: 10px;
+                        font-size: 0.82rem;
+                        color: var(--text-secondary);
+                    ">
+                        <span style="color: var(--primary); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Previous · ${prev.date}
+                        </span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px;">
+                            ${prev.sets.map((s, i) => `
+                                <span style="background: rgba(255,255,255,0.07); padding: 3px 8px; border-radius: 20px; white-space: nowrap;">
+                                    Set ${i + 1}: ${formatWeight(s.weight)} × ${s.reps}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : '';
+                
+                return `
                 <div class="exercise-entry">
                     <div class="entry-header">
                         <span class="exercise-name">${exercise.name}</span>
                         <button class="remove-exercise" onclick="removeExercise(${exIndex})">×</button>
                     </div>
+                    ${prevHtml}
                     <div class="sets-container">
                         ${exercise.sets.map((set, setIndex) => `
                             <div class="set-row">
@@ -2282,7 +2330,7 @@
                     </div>
                     <button class="add-set-btn" onclick="addSet(${exIndex})">+ Add Set</button>
                 </div>
-            `).join('');
+            `}).join('');
             
             updateExerciseDropdown();
         }
@@ -3032,12 +3080,17 @@
                 const totalSetsEl = document.getElementById('totalSets');
                 const sessionsEl = document.getElementById('sessions');
                 const statsGrid = document.getElementById('statsGrid');
+                const maxLabel = document.getElementById('maxLabel');
                 
                 if (maxValueEl) maxValueEl.textContent = formatWeight(maxWeight);
-                if (avgValueEl) avgValueEl.textContent = formatWeight(avgWeight.toFixed(1));
+                if (maxLabel) maxLabel.textContent = `Max · ${formatWeight(maxWeight)}`;
+                if (avgValueEl) avgValueEl.textContent = formatWeight(parseFloat(avgWeight).toFixed(1));
                 if (totalSetsEl) totalSetsEl.textContent = totalSets;
                 if (sessionsEl) sessionsEl.textContent = sessionData.length;
                 if (statsGrid) statsGrid.style.display = 'grid';
+                
+                // Update chart title with max weight
+                if (chartTitle) chartTitle.textContent = `${exerciseName} — Max: ${formatWeight(maxWeight)}`;
                 
                 drawWeightChart(sessionData);
             } else {
@@ -3149,8 +3202,9 @@
             
             // Update title
             const chartTitle = document.getElementById('chartTitle');
+            const heaviestWeight = weightsWithProgress[0].weight;
             if (chartTitle) {
-                chartTitle.textContent = `${exerciseName} - Reps Progress by Weight`;
+                chartTitle.textContent = `${exerciseName} — Max: ${formatWeight(heaviestWeight)}`;
             }
             
             // Calculate overall stats
@@ -3164,8 +3218,10 @@
             const totalSetsEl = document.getElementById('totalSets');
             const sessionsEl = document.getElementById('sessions');
             const statsGrid = document.getElementById('statsGrid');
+            const maxLabel = document.getElementById('maxLabel');
             
             if (maxValueEl) maxValueEl.textContent = `${maxReps} reps`;
+            if (maxLabel) maxLabel.textContent = 'Max Reps';
             if (avgValueEl) avgValueEl.textContent = `${avgReps} reps`;
             if (totalSetsEl) totalSetsEl.textContent = allSets.length;
             if (sessionsEl) sessionsEl.textContent = uniqueDates.size;

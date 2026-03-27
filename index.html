@@ -4242,28 +4242,29 @@
          */
         function identifyExerciseGoal(exerciseName) {
             try {
-                const repCounts = [];
+                const firstSetReps = []; // Only first set from each workout!
                 
                 workouts.forEach(workout => {
                     const exercise = workout.exercises.find(ex => ex.name === exerciseName);
-                    if (exercise) {
-                        exercise.sets.forEach(set => {
-                            const reps = parseInt(set.reps);
-                            if (!isNaN(reps) && reps > 0) {
-                                repCounts.push(reps);
-                            }
-                        });
+                    if (exercise && exercise.sets.length > 0) {
+                        // CRITICAL: Only look at the FIRST SET - that's the real goal!
+                        // Drop sets/burnout sets don't define the training goal
+                        const firstSet = exercise.sets[0];
+                        const reps = parseInt(firstSet.reps);
+                        if (!isNaN(reps) && reps > 0) {
+                            firstSetReps.push(reps);
+                        }
                     }
                 });
                 
-                if (repCounts.length === 0) return null;
+                if (firstSetReps.length === 0) return null;
                 
-                // Count reps in each range
-                const strength = repCounts.filter(r => r >= 1 && r <= 5).length;
-                const hypertrophy = repCounts.filter(r => r >= 6 && r <= 12).length;
-                const endurance = repCounts.filter(r => r >= 13).length;
+                // Count first sets in each range
+                const strength = firstSetReps.filter(r => r >= 1 && r <= 5).length;
+                const hypertrophy = firstSetReps.filter(r => r >= 6 && r <= 12).length;
+                const endurance = firstSetReps.filter(r => r >= 13).length;
                 
-                const total = repCounts.length;
+                const total = firstSetReps.length;
                 
                 // 70% or more in a range = that's the goal
                 if (strength / total >= 0.7) return 'strength';
